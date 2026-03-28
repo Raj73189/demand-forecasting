@@ -9,6 +9,10 @@ pip install -r requirements.txt
 python main.py
 ```
 
+Open `http://localhost:8501`.
+
+For other devices on the same Wi-Fi, run `ipconfig` and open `http://<your-local-ip>:8501` from the other PC or phone.
+
 Optional: load only the first N rows of `data/raw/train.csv` (faster iteration):
 
 ```bash
@@ -44,9 +48,10 @@ Deploy at [share.streamlit.io](https://share.streamlit.io) (sign in with GitHub)
 ### 1. Repo checklist
 
 - **`requirements.txt`** at the repo root (used for `pip install`).
+- **`runtime.txt`** at the repo root to pin Python 3.11 for compatible package builds.
 - **`packages.txt`** at the repo root: `build-essential` helps **Prophet** install. If the build still fails, remove the `prophet` line from `requirements.txt` and use **SARIMAX** only in the app.
 - **Data:** commit **`data/raw/train_cloud_sample.csv`** (~50k rows, ~1.6 MB) so the app runs on Cloud without the full Rossmann file. If you also commit `data/raw/train.csv`, the app uses **`train.csv` first** unless you override (see Secrets). Regenerate the sample with: `python scripts/build_cloud_sample.py` (needs the full `train.csv` locally).
-- **Main file path** (in the deploy dialog): **`app/stremlit_app.py`**
+- **Main file path** (in the deploy dialog): **`app/streamlit_app.py`**
 
 ### 2. Secrets (recommended)
 
@@ -62,7 +67,7 @@ Use `DEMAND_FORECAST_DATA_FILE` when both `train.csv` and `train_cloud_sample.cs
 ### 3. Deploy
 
 1. Push this project to a **public** GitHub repo (or connect a private repo if your Streamlit plan allows it).
-2. **Create app** → pick the repo, branch, and main file **`app/stremlit_app.py`**.
+2. **Create app** → pick the repo, branch, and main file **`app/streamlit_app.py`**.
 3. Save **Secrets** as above, then **Reboot** the app if it already ran once.
 
 ### 4. Troubleshooting
@@ -72,6 +77,15 @@ Use `DEMAND_FORECAST_DATA_FILE` when both `train.csv` and `train_cloud_sample.cs
 | Install fails on `prophet` | Remove `prophet` from `requirements.txt`, redeploy, use SARIMAX. |
 | App crashes / OOM | Lower `DEMAND_FORECAST_TRAIN_MAX_ROWS` in Secrets or commit a smaller `train.csv`. |
 | “Data file not found” | Commit **`data/raw/train_cloud_sample.csv`** (or `train.csv`). |
+
+## Render deployment
+
+This repo also includes `render.yaml` for Docker deployment on Render.
+
+1. Push the repo to GitHub.
+2. In Render, create a new Web Service from that repo.
+3. Render will detect `render.yaml` and build the Docker image.
+4. After deploy, Render gives you a public `https://...onrender.com` URL that works on desktop and phone.
 
 ## Environment variables
 

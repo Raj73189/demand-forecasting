@@ -4,7 +4,11 @@ from pathlib import Path
 
 import streamlit as st
 
-st.set_page_config(page_title="Demand Forecasting", layout="wide")
+st.set_page_config(
+    page_title="Demand Forecasting",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
 
 # Streamlit Community Cloud: set row limit in app Settings → Secrets, e.g.
 # DEMAND_FORECAST_TRAIN_MAX_ROWS = "150000"
@@ -204,7 +208,7 @@ with tab_back:
                         "forecast": pred.values,
                     }
                 )
-                st.dataframe(cmp_df, use_container_width=True)
+                st.dataframe(cmp_df, width="stretch")
 
 with tab_fwd:
     st.subheader("Future demand")
@@ -238,4 +242,4 @@ with tab_fwd:
             out_df = pd.DataFrame(
                 {"date": pred.index, "predicted_demand": pred.values.round(2)}
             )
-            st.dataframe(out_df, use_container_width=True)
+            st.dataframe(out_df, width="stretch")

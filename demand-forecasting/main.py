@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 
-APP_PATH = Path(__file__).resolve().parent / "app" / "stremlit_app.py"
+APP_PATH = Path(__file__).resolve().parent / "app" / "streamlit_app.py"
 
 
 def main() -> int:
@@ -15,6 +15,7 @@ def main() -> int:
     env = os.environ.copy()
     env.setdefault("STREAMLIT_BROWSER_GATHER_USAGE_STATS", "false")
 
+    port = os.environ.get("PORT", "8501")
     command = [
         sys.executable,
         "-m",
@@ -23,6 +24,12 @@ def main() -> int:
         str(APP_PATH),
         "--server.headless",
         "true",
+        "--server.address",
+        "0.0.0.0",
+        "--server.port",
+        port,
+        "--server.fileWatcherType",
+        "none",
     ]
     return subprocess.call(command, env=env)
 
