@@ -9,10 +9,15 @@ st.set_page_config(page_title="Demand Forecasting", layout="wide")
 # Streamlit Community Cloud: set row limit in app Settings → Secrets, e.g.
 # DEMAND_FORECAST_TRAIN_MAX_ROWS = "150000"
 try:
-    if hasattr(st, "secrets") and "DEMAND_FORECAST_TRAIN_MAX_ROWS" in st.secrets:
-        os.environ["DEMAND_FORECAST_TRAIN_MAX_ROWS"] = str(
-            st.secrets["DEMAND_FORECAST_TRAIN_MAX_ROWS"]
-        )
+    if hasattr(st, "secrets"):
+        if "DEMAND_FORECAST_TRAIN_MAX_ROWS" in st.secrets:
+            os.environ["DEMAND_FORECAST_TRAIN_MAX_ROWS"] = str(
+                st.secrets["DEMAND_FORECAST_TRAIN_MAX_ROWS"]
+            )
+        if "DEMAND_FORECAST_DATA_FILE" in st.secrets:
+            os.environ["DEMAND_FORECAST_DATA_FILE"] = str(
+                st.secrets["DEMAND_FORECAST_DATA_FILE"]
+            )
 except Exception:
     pass
 

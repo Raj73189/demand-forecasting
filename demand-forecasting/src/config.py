@@ -14,7 +14,26 @@ def _env_positive_int(name: str) -> int | None:
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_PATH = BASE_DIR / "data" / "raw" / "train.csv"
+_RAW = BASE_DIR / "data" / "raw"
+
+
+def _resolve_data_path() -> Path:
+    """Prefer DEMAND_FORECAST_DATA_FILE, then train.csv, then bundled sample for Cloud."""
+    override = os.environ.get("DEMAND_FORECAST_DATA_FILE", "").strip()
+    if override:
+        p = _RAW / override
+        if p.is_file():
+            return p
+    primary = _RAW / "train.csv"
+    if primary.is_file():
+        return primary
+    sample = _RAW / "train_cloud_sample.csv"
+    if sample.is_file():
+        return sample
+    return primary
+
+
+DATA_PATH = _resolve_data_path()
 # Set DEMAND_FORECAST_TRAIN_MAX_ROWS=100000 to read only the first N rows (faster local demos).
 TRAIN_MAX_ROWS = _env_positive_int("DEMAND_FORECAST_TRAIN_MAX_ROWS")
 ORDER = (1, 1, 1)
