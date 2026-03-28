@@ -1,9 +1,11 @@
 import pandas as pd
 
 
-def load_and_clean(path):
-
-    df = pd.read_csv(path, low_memory=False)
+def load_and_clean(path, nrows: int | None = None):
+    read_kw = {"low_memory": False}
+    if nrows is not None:
+        read_kw["nrows"] = nrows
+    df = pd.read_csv(path, **read_kw)
 
     df = df.rename(columns={
         "Date": "date",
