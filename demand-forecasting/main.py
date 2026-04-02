@@ -9,7 +9,7 @@ APP_PATH = Path(__file__).resolve().parent / "app" / "streamlit_app.py"
 
 def main() -> int:
     if not APP_PATH.exists():
-        print(f"Streamlit app not found: {APP_PATH}", file=sys.stderr)
+        print(f"Streamlit app not found: {"C:\\Users\\dusma\\my codes\\demand-forecasting\\app\\stremlit_app.py"}", file=sys.stderr)
         return 1
 
     env = os.environ.copy()
@@ -21,7 +21,7 @@ def main() -> int:
         "-m",
         "streamlit",
         "run",
-        str(APP_PATH),
+        str("C:\\Users\\dusma\\my codes\\demand-forecasting\\app\\streamlit_app.py"),
         "--server.headless",
         "true",
         "--server.address",
