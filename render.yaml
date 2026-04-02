@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: demand-forecasting
+    runtime: docker
+    plan: free
+    autoDeploy: true
