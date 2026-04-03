@@ -45,6 +45,30 @@ def _load_data(path_str: str, nrows: int | None):
     return load_and_clean(Path(path_str), nrows=nrows)
 
 
+@st.cache_data(show_spinner=False)
+def _run_backtest(series: pd.Series, model_name: str, holdout_days: int):
+    if model_name == "SARIMAX":
+        return backtest_sarimax(
+            series,
+            config.ORDER,
+            config.SEASONAL_ORDER,
+            holdout_days,
+        )
+    return backtest_prophet(series, holdout_days)
+
+
+@st.cache_data(show_spinner=False)
+def _run_forward_forecast(series: pd.Series, model_name: str, forecast_days: int):
+    if model_name == "SARIMAX":
+        return forecast_sarimax(
+            series,
+            config.ORDER,
+            config.SEASONAL_ORDER,
+            forecast_days,
+        )
+    return forecast_prophet(series, forecast_days)
+
+
 PROPHET_AVAILABLE = find_spec("prophet") is not None
 
 st.title("Demand forecasting")
@@ -68,7 +92,10 @@ model_options = ["SARIMAX"]
 if PROPHET_AVAILABLE:
     model_options.append("Prophet")
 else:
-    st.info("Install **prophet** (`pip install prophet`) to enable Prophet.")
+    st.info(
+        "Prophet is unavailable in this runtime. Install with `pip install prophet` "
+        "or on Streamlit Community Cloud set Python to **3.11** in App Settings."
+    )
 
 with st.sidebar:
     if config.TRAIN_MAX_ROWS is not None:
@@ -169,71 +196,69 @@ with tab_back:
             f"{model_name} backtest; this series has {n}."
         )
     else:
-        with st.spinner("Running backtest..."):
-            try:
-                if model_name == "SARIMAX":
-                    actual, pred, metrics = backtest_sarimax(
-                        demand,
-                        config.ORDER,
-                        config.SEASONAL_ORDER,
-                        holdout_days,
-                    )
+        backtest_state_key = f"{store}|{model_name}|{holdout_days}"
+        if st.button("Run backtest", key="run_backtest"):
+            st.session_state["backtest_ready_key"] = backtest_state_key
+
+        if st.session_state.get("backtest_ready_key") != backtest_state_key:
+            st.info("Click **Run backtest** to compute metrics and plot.")
+        else:
+            with st.spinner("Running backtest..."):
+                try:
+                    actual, pred, metrics = _run_backtest(demand, model_name, holdout_days)
+                except Exception as exc:
+                    st.error(f"Backtest failed: {exc}")
                 else:
-                    actual, pred, metrics = backtest_prophet(demand, holdout_days)
-            except Exception as exc:
-                st.error(f"Backtest failed: {exc}")
-            else:
-                m1, m2, m3 = st.columns(3)
-                m1.metric("MAE", f"{metrics['mae']:.2f}")
-                m2.metric("RMSE", f"{metrics['rmse']:.2f}")
-                m3.metric("MAPE (%)", f"{metrics['mape']:.2f}")
-                fig_b, ax_b = plt.subplots(figsize=(12, 4))
-                ax_b.plot(actual.index, actual.values, label="Actual", color="C0")
-                ax_b.plot(pred.index, pred.values, label="Forecast", color="C1", linestyle="--")
-                ax_b.set_ylabel("Demand")
-                ax_b.legend()
-                ax_b.set_title(f"{model_name} — last {holdout_days} days held out")
-                st.pyplot(fig_b)
-                plt.close(fig_b)
-                cmp_df = pd.DataFrame(
-                    {
-                        "date": actual.index,
-                        "actual": actual.values,
-                        "forecast": pred.values,
-                    }
-                )
-                st.dataframe(cmp_df, width="stretch")
+                    m1, m2, m3 = st.columns(3)
+                    m1.metric("MAE", f"{metrics['mae']:.2f}")
+                    m2.metric("RMSE", f"{metrics['rmse']:.2f}")
+                    m3.metric("MAPE (%)", f"{metrics['mape']:.2f}")
+                    fig_b, ax_b = plt.subplots(figsize=(12, 4))
+                    ax_b.plot(actual.index, actual.values, label="Actual", color="C0")
+                    ax_b.plot(pred.index, pred.values, label="Forecast", color="C1", linestyle="--")
+                    ax_b.set_ylabel("Demand")
+                    ax_b.legend()
+                    ax_b.set_title(f"{model_name} — last {holdout_days} days held out")
+                    st.pyplot(fig_b)
+                    plt.close(fig_b)
+                    cmp_df = pd.DataFrame(
+                        {
+                            "date": actual.index,
+                            "actual": actual.values,
+                            "forecast": pred.values,
+                        }
+                    )
+                    st.dataframe(cmp_df, width="stretch")
 
 with tab_fwd:
     st.subheader("Future demand")
-    with st.spinner("Generating forecast..."):
-        try:
-            if model_name == "SARIMAX":
-                pred = forecast_sarimax(
-                    demand,
-                    config.ORDER,
-                    config.SEASONAL_ORDER,
-                    forecast_days,
-                )
+    forecast_state_key = f"{store}|{model_name}|{forecast_days}"
+    if st.button("Generate forecast", key="run_forward_forecast"):
+        st.session_state["forecast_ready_key"] = forecast_state_key
+
+    if st.session_state.get("forecast_ready_key") != forecast_state_key:
+        st.info("Click **Generate forecast** to run the model.")
+    else:
+        with st.spinner("Generating forecast..."):
+            try:
+                pred = _run_forward_forecast(demand, model_name, forecast_days)
+            except Exception as exc:
+                st.error(f"Forecast failed: {exc}")
             else:
-                pred = forecast_prophet(demand, forecast_days)
-        except Exception as exc:
-            st.error(f"Forecast failed: {exc}")
-        else:
-            fig_f, ax_f = plt.subplots(figsize=(12, 4))
-            hist_days = min(90, n)
-            ax_f.plot(
-                demand.index[-hist_days:],
-                demand.values[-hist_days:],
-                label="History",
-            )
-            ax_f.plot(pred.index, pred.values, label="Forecast", linestyle="--", color="orange")
-            ax_f.set_ylabel("Demand")
-            ax_f.legend()
-            ax_f.set_title(f"Store {store} — {model_name}")
-            st.pyplot(fig_f)
-            plt.close(fig_f)
-            out_df = pd.DataFrame(
-                {"date": pred.index, "predicted_demand": pred.values.round(2)}
-            )
-            st.dataframe(out_df, width="stretch")
+                fig_f, ax_f = plt.subplots(figsize=(12, 4))
+                hist_days = min(90, n)
+                ax_f.plot(
+                    demand.index[-hist_days:],
+                    demand.values[-hist_days:],
+                    label="History",
+                )
+                ax_f.plot(pred.index, pred.values, label="Forecast", linestyle="--", color="orange")
+                ax_f.set_ylabel("Demand")
+                ax_f.legend()
+                ax_f.set_title(f"Store {store} — {model_name}")
+                st.pyplot(fig_f)
+                plt.close(fig_f)
+                out_df = pd.DataFrame(
+                    {"date": pred.index, "predicted_demand": pred.values.round(2)}
+                )
+                st.dataframe(out_df, width="stretch")
