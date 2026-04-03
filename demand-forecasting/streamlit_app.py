@@ -1,5 +1,6 @@
 import os
 import sys
+import types
 from importlib.util import find_spec
 from pathlib import Path
 
@@ -30,25 +31,47 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 ROOT_DIR = Path(__file__).resolve().parent
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
+SRC_DIR = ROOT_DIR / "src"
 
-if not (ROOT_DIR / "src").is_dir():
-    st.error(
-        "Missing `src/` directory in deployment. Commit and push the full `src/` "
-        "folder to your GitHub repository, then reboot the app."
+
+def _ensure_src_importable() -> None:
+    if str(ROOT_DIR) not in sys.path:
+        sys.path.insert(0, str(ROOT_DIR))
+
+    if not SRC_DIR.is_dir():
+        st.error(
+            "Missing `src/` directory in deployment. Commit and push the full "
+            "`src/` folder to your GitHub repository, then reboot the app."
+        )
+        st.stop()
+
+    # Defensive fallback for environments where script dir is not import-root.
+    # This creates a package stub so `from src import ...` resolves from SRC_DIR.
+    if "src" not in sys.modules:
+        pkg = types.ModuleType("src")
+        pkg.__path__ = [str(SRC_DIR)]
+        sys.modules["src"] = pkg
+
+
+_ensure_src_importable()
+
+try:
+    from src import config
+    from src.decomposition import decompose_series
+    from src.forecasting import (
+        backtest_prophet,
+        backtest_sarimax,
+        forecast_prophet,
+        forecast_sarimax,
     )
+    from src.preprocessing import load_and_clean
+except ModuleNotFoundError as exc:
+    st.error(
+        "Failed to import project modules. Ensure `src/` is committed and the app "
+        "main file path points to `streamlit_app.py` at repository root."
+    )
+    st.exception(exc)
     st.stop()
-
-from src import config
-from src.decomposition import decompose_series
-from src.forecasting import (
-    backtest_prophet,
-    backtest_sarimax,
-    forecast_prophet,
-    forecast_sarimax,
-)
-from src.preprocessing import load_and_clean
 
 
 @st.cache_data(show_spinner="Loading data…")
