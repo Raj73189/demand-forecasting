@@ -25,8 +25,6 @@ try:
 except Exception:
     pass
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-
 import matplotlib.pyplot as plt
 import pandas as pd
 

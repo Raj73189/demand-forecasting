@@ -6,7 +6,7 @@ Streamlit app for demand history, trend/seasonality decomposition, backtests (SA
 
 ```bash
 pip install -r requirements.txt
-python main.py
+streamlit run streamlit_app.py
 ```
 
 Open `http://localhost:8502`.
@@ -18,8 +18,30 @@ Optional: load only the first N rows of `data/raw/train.csv` (faster iteration):
 ```bash
 # PowerShell
 $env:DEMAND_FORECAST_TRAIN_MAX_ROWS="100000"
-python main.py
+streamlit run streamlit_app.py
 ```
+
+## Deploy to Streamlit Community Cloud
+
+Deploy at [share.streamlit.io](https://share.streamlit.io) (sign in with GitHub).
+
+### 1. Prerequisites
+- GitHub repository with this code
+- Streamlit Community Cloud account
+
+### 2. Deploy Steps
+1. Go to [share.streamlit.io](https://share.streamlit.io)
+2. Click "New app"
+3. Connect your GitHub repository: `Raj73189/demand-forecasting`
+4. Set the main file path: `streamlit_app.py`
+5. Click "Deploy"
+
+### 3. Configure Secrets (Optional)
+In your Streamlit Cloud app settings, you can add secrets:
+- `DEMAND_FORECAST_TRAIN_MAX_ROWS`: Limit data rows (default: 150000)
+- `DEMAND_FORECAST_DATA_FILE`: Custom data file path
+
+See `.streamlit/secrets.toml.example` for reference.
 
 ## Deploy with Docker
 
