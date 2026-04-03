@@ -73,7 +73,7 @@ Deploy at [share.streamlit.io](https://share.streamlit.io) (sign in with GitHub)
 - **`runtime.txt`** at the repo root to pin Python 3.11 for compatible package builds.
 - **`packages.txt`** at the repo root: `build-essential` helps **Prophet** install. If the build still fails, remove the `prophet` line from `requirements.txt` and use **SARIMAX** only in the app.
 - **Data:** commit **`data/raw/train_cloud_sample.csv`** (~50k rows, ~1.6 MB) so the app runs on Cloud without the full Rossmann file. If you also commit `data/raw/train.csv`, the app uses **`train.csv` first** unless you override (see Secrets). Regenerate the sample with: `python scripts/build_cloud_sample.py` (needs the full `train.csv` locally).
-- **Main file path** (in the deploy dialog): **`app/streamlit_app.py`**
+- **Main file path** (in the deploy dialog): **`streamlit_app.py`**
 
 ### 2. Secrets (recommended)
 
@@ -89,7 +89,7 @@ Use `DEMAND_FORECAST_DATA_FILE` when both `train.csv` and `train_cloud_sample.cs
 ### 3. Deploy
 
 1. Push this project to a **public** GitHub repo (or connect a private repo if your Streamlit plan allows it).
-2. **Create app** → pick the repo, branch, and main file **`app/streamlit_app.py`**.
+2. **Create app** → pick the repo, branch, and main file **`streamlit_app.py`**.
 3. Save **Secrets** as above, then **Reboot** the app if it already ran once.
 
 ### 4. Troubleshooting
@@ -115,4 +115,4 @@ This repo also includes `render.yaml` for Docker deployment on Render.
 |----------|---------|
 | `DEMAND_FORECAST_DATA_FILE` | Filename under `data/raw/` (e.g. `train_cloud_sample.csv`). Overrides default resolution. |
 | `DEMAND_FORECAST_TRAIN_MAX_ROWS` | Read only the first N rows of the chosen file (demos / memory limits). |
-| `PORT` | Used by the Docker entrypoint on PaaS (defaults to `8501`). |
+| `PORT` | Used by the Docker entrypoint on PaaS (defaults to `8502`). |

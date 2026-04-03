@@ -21,6 +21,7 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY src/ ./src/
 COPY app/ ./app/
+COPY streamlit_app.py ./streamlit_app.py
 COPY .streamlit/ ./.streamlit/
 COPY data/raw/train_cloud_sample.csv ./data/raw/
 COPY scripts/docker-entrypoint.sh /docker-entrypoint.sh
