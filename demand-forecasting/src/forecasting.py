@@ -1,9 +1,19 @@
 from __future__ import annotations
 
+import importlib
+
 import pandas as pd
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 
 from src.evaluation import evaluate
+
+
+def _get_prophet_class():
+    try:
+        module = importlib.import_module("prophet")
+    except ImportError as exc:
+        raise ImportError("Prophet is not installed. Run `pip install prophet`.") from exc
+    return getattr(module, "Prophet")
 
 
 def forecast_sarimax(series: pd.Series, order, seasonal_order, steps: int) -> pd.Series:
@@ -26,7 +36,7 @@ def forecast(series, order, seasonal_order, steps: int) -> pd.Series:
 
 
 def forecast_prophet(series: pd.Series, periods: int) -> pd.Series:
-    from prophet import Prophet
+    Prophet = _get_prophet_class()
 
     df = pd.DataFrame({"ds": pd.to_datetime(series.index), "y": series.values})
     m = Prophet(
@@ -69,7 +79,7 @@ def backtest_sarimax(
 
 
 def backtest_prophet(series: pd.Series, holdout_days: int) -> tuple[pd.Series, pd.Series, dict]:
-    from prophet import Prophet
+    Prophet = _get_prophet_class()
 
     if len(series) < holdout_days + 1:
         raise ValueError("Series shorter than holdout window.")

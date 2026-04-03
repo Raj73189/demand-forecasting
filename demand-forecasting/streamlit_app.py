@@ -1,5 +1,6 @@
 import os
 import sys
+from importlib.util import find_spec
 from pathlib import Path
 
 import streamlit as st
@@ -44,12 +45,7 @@ def _load_data(path_str: str, nrows: int | None):
     return load_and_clean(Path(path_str), nrows=nrows)
 
 
-try:
-    import prophet  # noqa: F401
-
-    PROPHET_AVAILABLE = True
-except ImportError:
-    PROPHET_AVAILABLE = False
+PROPHET_AVAILABLE = find_spec("prophet") is not None
 
 st.title("Demand forecasting")
 
