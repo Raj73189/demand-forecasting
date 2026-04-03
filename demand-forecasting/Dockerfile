@@ -1,6 +1,6 @@
 # Demand forecasting — Streamlit
 # Build: docker build -t demand-forecast .
-# Run:  docker run --rm -p 8501:8501 demand-forecast
+# Run:  docker run --rm -p 8502:8502 demand-forecast
 
 FROM python:3.11-slim-bookworm
 
@@ -22,7 +22,7 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 COPY src/ ./src/
 COPY app/ ./app/
 COPY .streamlit/ ./.streamlit/
-COPY data/raw/ ./data/raw/
+COPY data/raw/train_cloud_sample.csv ./data/raw/
 COPY scripts/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 

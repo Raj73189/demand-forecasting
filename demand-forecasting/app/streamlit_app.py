@@ -62,7 +62,7 @@ if not data_path.exists():
 
 try:
     df = _load_data(str(data_path), config.TRAIN_MAX_ROWS)
-except Exception as exc:
+except (FileNotFoundError, pd.errors.EmptyDataError, ValueError) as exc:
     st.error(f"Failed to load data: {exc}")
     st.stop()
 

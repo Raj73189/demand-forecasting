@@ -9,9 +9,9 @@ pip install -r requirements.txt
 python main.py
 ```
 
-Open `http://localhost:8501`.
+Open `http://localhost:8502`.
 
-For other devices on the same Wi-Fi, run `ipconfig` and open `http://<your-local-ip>:8501` from the other PC or phone.
+For other devices on the same Wi-Fi, run `ipconfig` and open `http://<your-local-ip>:8502` from the other PC or phone.
 
 Optional: load only the first N rows of `data/raw/train.csv` (faster iteration):
 
@@ -27,10 +27,10 @@ From the project root (`data/raw/` should include at least `train_cloud_sample.c
 
 ```bash
 docker build -t demand-forecast .
-docker run --rm -p 8501:8501 demand-forecast
+docker run --rm -p 8502:8502 demand-forecast
 ```
 
-Open `http://localhost:8501`.
+Open `http://localhost:8502`.
 
 - Default image env: `DEMAND_FORECAST_TRAIN_MAX_ROWS=150000` to limit memory use. Override: `-e DEMAND_FORECAST_TRAIN_MAX_ROWS=500000` or unset by passing `-e DEMAND_FORECAST_TRAIN_MAX_ROWS=` (empty may not clear — use a custom env file or rebuild without the default in `Dockerfile` if you need the full file).
 - **Platforms that set `PORT` (Railway, Render, Fly):** the entrypoint reads `PORT` and binds Streamlit to it; map the platform’s HTTP port to that process port as usual.
@@ -38,7 +38,7 @@ Open `http://localhost:8501`.
 Mount a different training CSV (same schema as Rossmann `train.csv`):
 
 ```bash
-docker run --rm -p 8501:8501 -v C:/path/to/train.csv:/app/data/raw/train.csv:ro demand-forecast
+docker run --rm -p 8502:8502 -v C:/path/to/train.csv:/app/data/raw/train.csv:ro demand-forecast
 ```
 
 ## Streamlit Community Cloud

@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, g
 import pandas as pd
 
 from src.config import DATA_PATH, ORDER, SEASONAL_ORDER, TRAIN_MAX_ROWS
@@ -7,11 +7,15 @@ from src.forecasting import forecast
 
 app = Flask(__name__)
 
-df = load_and_clean(DATA_PATH, nrows=TRAIN_MAX_ROWS)
+def get_data():
+    if 'df' not in g:
+        g.df = load_and_clean(DATA_PATH, nrows=TRAIN_MAX_ROWS)
+    return g.df
 
 
 @app.route("/forecast", methods=["GET"])
 def get_forecast():
+    df = get_data()
     raw = request.args.get("store_id")
     if raw is None:
         return jsonify({"error": "store_id is required"}), 400
@@ -46,4 +50,4 @@ def get_forecast():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=False, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
