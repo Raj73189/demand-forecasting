@@ -1,4 +1,5 @@
 import os
+import runpy
 import subprocess
 import sys
 from pathlib import Path
@@ -21,10 +22,24 @@ def _resolve_app_path() -> Path:
 APP_PATH = _resolve_app_path()
 
 
+def _running_inside_streamlit() -> bool:
+    try:
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
+    except Exception:
+        return False
+    return get_script_run_ctx() is not None
+
+
 def main() -> int:
     if not APP_PATH.exists():
         print(f"Streamlit app not found: {APP_PATH}", file=sys.stderr)
         return 1
+
+    # If this file is selected as the Streamlit "Main file path", render
+    # the real app in the current process instead of spawning another server.
+    if _running_inside_streamlit():
+        runpy.run_path(str(APP_PATH), run_name="__main__")
+        return 0
 
     env = os.environ.copy()
     env.setdefault("STREAMLIT_BROWSER_GATHER_USAGE_STATS", "false")
