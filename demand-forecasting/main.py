@@ -4,23 +4,7 @@ import sys
 from pathlib import Path
 
 
-ROOT_DIR = Path(__file__).resolve().parent
-
-
-def _resolve_app_path() -> Path:
-    # Prefer the root script (current layout), but keep compatibility if
-    # `app/streamlit_app.py` exists in older checkouts.
-    candidates = [
-        ROOT_DIR / "streamlit_app.py",
-        ROOT_DIR / "app" / "streamlit_app.py",
-    ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return candidates[0]
-
-
-APP_PATH = _resolve_app_path()
+APP_PATH = Path(__file__).resolve().parent / "streamlit_app.py"
 
 
 def main() -> int:

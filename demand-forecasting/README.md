@@ -70,7 +70,8 @@ Deploy at [share.streamlit.io](https://share.streamlit.io) (sign in with GitHub)
 ### 1. Repo checklist
 
 - **`requirements.txt`** at the repo root (used for `pip install`).
-- **`runtime.txt`** at the repo root to pin Python 3.11 for compatible package builds.
+- **Python version (Community Cloud):** choose this in **App settings → Advanced settings**.
+- **`runtime.txt`** is kept for non-Community-Cloud workflows.
 - **`packages.txt`** at the repo root: `build-essential` helps **Prophet** install. If the build still fails, remove the `prophet` line from `requirements.txt` and use **SARIMAX** only in the app.
 - **Data:** commit **`data/raw/train_cloud_sample.csv`** (~50k rows, ~1.6 MB) so the app runs on Cloud without the full Rossmann file. If you also commit `data/raw/train.csv`, the app uses **`train.csv` first** unless you override (see Secrets). Regenerate the sample with: `python scripts/build_cloud_sample.py` (needs the full `train.csv` locally).
 - **Main file path** (in the deploy dialog): **`streamlit_app.py`**
@@ -90,7 +91,8 @@ Use `DEMAND_FORECAST_DATA_FILE` when both `train.csv` and `train_cloud_sample.cs
 
 1. Push this project to a **public** GitHub repo (or connect a private repo if your Streamlit plan allows it).
 2. **Create app** → pick the repo, branch, and main file **`streamlit_app.py`**.
-3. Save **Secrets** as above, then **Reboot** the app if it already ran once.
+3. In **Advanced settings**, select **Python 3.11** for best package compatibility.
+4. Save **Secrets** as above, then **Reboot** the app if it already ran once.
 
 ### 4. Troubleshooting
 
@@ -99,6 +101,7 @@ Use `DEMAND_FORECAST_DATA_FILE` when both `train.csv` and `train_cloud_sample.cs
 | Install fails on `prophet` | Remove `prophet` from `requirements.txt`, redeploy, use SARIMAX. |
 | App crashes / OOM | Lower `DEMAND_FORECAST_TRAIN_MAX_ROWS` in Secrets or commit a smaller `train.csv`. |
 | “Data file not found” | Commit **`data/raw/train_cloud_sample.csv`** (or `train.csv`). |
+| Logs show Python 3.14.x unexpectedly | Set Python version in **App settings → Advanced settings** and reboot. |
 
 ## Render deployment
 
