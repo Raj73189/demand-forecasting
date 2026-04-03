@@ -26,9 +26,9 @@ COPY data/raw/ ./data/raw/
 COPY scripts/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
-EXPOSE 8501
+EXPOSE 8502
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
-    CMD python -c "import os,urllib.request; p=os.environ.get('PORT','8501'); urllib.request.urlopen('http://127.0.0.1:'+p+'/')" || exit 1
+    CMD python -c "import os,urllib.request; p=os.environ.get('PORT','8502'); urllib.request.urlopen('http://127.0.0.1:'+p+'/')" || exit 1
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

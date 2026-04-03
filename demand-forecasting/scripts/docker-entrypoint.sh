@@ -1,6 +1,6 @@
 #!/bin/sh
 set -e
-PORT="${PORT:-8501}"
+PORT="${PORT:-8502}"
 exec streamlit run app/streamlit_app.py \
   --server.headless=true \
   --server.port="${PORT}" \
