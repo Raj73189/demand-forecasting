@@ -1,10 +1,8 @@
-# Binds on all interfaces so containers and PaaS can reach the app.
-# Override with env: STREAMLIT_SERVER_PORT, STREAMLIT_SERVER_ADDRESS
+# Keep Cloud-friendly defaults here.
+# For local/container custom port/address, prefer CLI flags or environment vars.
 
 [server]
 headless = true
-address = "0.0.0.0"
-port = 8502
 
 [browser]
 gatherUsageStats = false
