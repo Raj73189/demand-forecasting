@@ -4,7 +4,21 @@ import sys
 from pathlib import Path
 
 
-APP_PATH = Path(__file__).resolve().parent / "streamlit_app.py"
+ROOT_DIR = Path(__file__).resolve().parent
+
+
+def _resolve_app_path() -> Path:
+    candidates = [
+        ROOT_DIR / "streamlit_app.py",
+        ROOT_DIR / "app" / "streamlit_app.py",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
+
+
+APP_PATH = _resolve_app_path()
 
 
 def main() -> int:
