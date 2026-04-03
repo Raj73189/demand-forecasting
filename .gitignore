@@ -1,0 +1,12 @@
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.env
+.venv/
+venv/
+.streamlit/secrets.toml
+
+# Large Kaggle extract — use train_cloud_sample.csv in repo or download locally
+data/raw/train.csv
+.vscode/
+natebook/
