@@ -31,6 +31,38 @@ def _running_inside_streamlit() -> bool:
     return get_script_run_ctx(suppress_warning=True) is not None
 
 
+def _run_streamlit_with_library(app_path: Path, port: str) -> int:
+    try:
+        from streamlit.web import cli as stcli
+    except Exception:
+        return -1
+
+    argv_backup = sys.argv[:]
+    sys.argv = [
+        "streamlit",
+        "run",
+        str(app_path),
+        "--server.headless",
+        "true",
+        "--server.address",
+        "0.0.0.0",
+        "--server.port",
+        port,
+        "--server.fileWatcherType",
+        "none",
+    ]
+    try:
+        stcli.main()
+        return 0
+    except SystemExit as exc:
+        code = exc.code
+        if isinstance(code, int):
+            return code
+        return 0
+    finally:
+        sys.argv = argv_backup
+
+
 def main() -> int:
     if not APP_PATH.exists():
         print(f"Streamlit app not found: {APP_PATH}", file=sys.stderr)
@@ -42,27 +74,31 @@ def main() -> int:
         runpy.run_path(str(APP_PATH), run_name="__main__")
         return 0
 
-    env = os.environ.copy()
-    env.setdefault("STREAMLIT_BROWSER_GATHER_USAGE_STATS", "false")
+    os.environ.setdefault("STREAMLIT_BROWSER_GATHER_USAGE_STATS", "false")
 
     port = os.environ.get("PORT", "8502")
-    command = [
-        sys.executable,
-        "-m",
-        "streamlit",
-        "run",
-        str(APP_PATH),
-        "--server.headless",
-        "true",
-        "--server.address",
-        "0.0.0.0",
-        "--server.port",
-        port,
-        "--server.fileWatcherType",
-        "none",
-    ]
     try:
-        return subprocess.call(command, env=env)
+        # Prefer Streamlit's library entrypoint, fallback to subprocess if unavailable.
+        lib_exit = _run_streamlit_with_library(APP_PATH, port)
+        if lib_exit != -1:
+            return lib_exit
+
+        command = [
+            sys.executable,
+            "-m",
+            "streamlit",
+            "run",
+            str(APP_PATH),
+            "--server.headless",
+            "true",
+            "--server.address",
+            "0.0.0.0",
+            "--server.port",
+            port,
+            "--server.fileWatcherType",
+            "none",
+        ]
+        return subprocess.call(command, env=os.environ.copy())
     except KeyboardInterrupt:
         # Allow Ctrl+C shutdown without printing a traceback.
         print("\nStreamlit server stopped by user.", file=sys.stderr)
