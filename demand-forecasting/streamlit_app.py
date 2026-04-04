@@ -1,6 +1,5 @@
 import os
 import sys
-import types
 from importlib.util import find_spec
 from pathlib import Path
 
@@ -31,26 +30,46 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 ROOT_DIR = Path(__file__).resolve().parent
-SRC_DIR = ROOT_DIR / "src"
+REQUIRED_SRC_FILE = "config.py"
+
+
+def _discover_src_dir() -> tuple[Path | None, list[Path]]:
+    script_parents = [ROOT_DIR, *ROOT_DIR.parents]
+    candidates: list[Path] = [ROOT_DIR / "src", Path.cwd() / "src"]
+    candidates.extend(parent / "src" for parent in script_parents)
+
+    unique_candidates: list[Path] = []
+    seen = set()
+    for candidate in candidates:
+        key = str(candidate.resolve(strict=False))
+        if key not in seen:
+            seen.add(key)
+            unique_candidates.append(candidate)
+
+    for candidate in unique_candidates:
+        if candidate.is_dir() and (candidate / REQUIRED_SRC_FILE).is_file():
+            return candidate, unique_candidates
+
+    return None, unique_candidates
+
+
+SRC_DIR, SRC_SEARCH_PATHS = _discover_src_dir()
 
 
 def _ensure_src_importable() -> None:
-    if str(ROOT_DIR) not in sys.path:
-        sys.path.insert(0, str(ROOT_DIR))
-
-    if not SRC_DIR.is_dir():
+    if SRC_DIR is None:
+        searched = "\n".join(f"- {p}" for p in SRC_SEARCH_PATHS)
         st.error(
-            "Missing `src/` directory in deployment. Commit and push the full "
-            "`src/` folder to your GitHub repository, then reboot the app."
+            "Failed to locate the project `src/` package in deployment.\n\n"
+            "Searched paths:\n"
+            f"{searched}\n\n"
+            "Commit and push the full `src/` folder, then reboot the app."
         )
         st.stop()
 
-    # Defensive fallback for environments where script dir is not import-root.
-    # This creates a package stub so `from src import ...` resolves from SRC_DIR.
-    if "src" not in sys.modules:
-        pkg = types.ModuleType("src")
-        pkg.__path__ = [str(SRC_DIR)]
-        sys.modules["src"] = pkg
+    src_parent = str(SRC_DIR.parent)
+    if src_parent not in sys.path:
+        sys.path.insert(0, src_parent)
 
 
 _ensure_src_importable()
