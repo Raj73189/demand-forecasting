@@ -27,7 +27,8 @@ def _running_inside_streamlit() -> bool:
         from streamlit.runtime.scriptrunner import get_script_run_ctx
     except Exception:
         return False
-    return get_script_run_ctx() is not None
+    # Avoid noisy "missing ScriptRunContext" warnings when launched via `python main.py`.
+    return get_script_run_ctx(suppress_warning=True) is not None
 
 
 def main() -> int:
@@ -60,7 +61,12 @@ def main() -> int:
         "--server.fileWatcherType",
         "none",
     ]
-    return subprocess.call(command, env=env)
+    try:
+        return subprocess.call(command, env=env)
+    except KeyboardInterrupt:
+        # Allow Ctrl+C shutdown without printing a traceback.
+        print("\nStreamlit server stopped by user.", file=sys.stderr)
+        return 130
 
 
 if __name__ == "__main__":
