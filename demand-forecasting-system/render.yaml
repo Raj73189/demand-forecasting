@@ -1,7 +1,6 @@
 services:
   - type: web
     name: demand-forecasting-system
-    rootDir: demand-forecasting-system
 
     runtime: python
     plan: free
