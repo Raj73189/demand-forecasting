@@ -61,7 +61,7 @@ def _promote_configured_admin() -> None:
     db = SessionLocal()
     try:
         user = auth.get_user_by_email(db, settings.admin_email)
-        if user and user.role != "admin":
+        if user is not None and user.role != "admin":
             user.role = "admin"
             db.commit()
     finally:
@@ -89,7 +89,7 @@ def _get_run_with_access(
     run = db.query(models.ForecastRun).filter(models.ForecastRun.id == run_id).first()
     if not run:
         return None
-    if run.user_id == current_user.id or auth.is_admin(current_user):
+    if (run.user_id == current_user.id) is True or auth.is_admin(current_user):
         return run
     return None
 
@@ -212,9 +212,9 @@ def dashboard(request: Request, run_id: int | None = None, db: Session = Depends
     }
 
     if active_run:
-        summary = json.loads(active_run.summary_json)
-        historical = json.loads(active_run.historical_json)
-        forecast = json.loads(active_run.forecast_json)
+        summary = json.loads(str(active_run.summary_json))
+        historical = json.loads(str(active_run.historical_json))
+        forecast = json.loads(str(active_run.forecast_json))
 
         chart = {
             "labels": [item["date"] for item in historical + forecast],
@@ -314,7 +314,7 @@ def update_user_role(
     if current_user.id == target_user.id and normalized_role != "admin":
         return _redirect("/admin", error="You cannot remove your own admin role.")
 
-    if target_user.role == "admin" and normalized_role == "user":
+    if normalized_role == "user" and target_user.role == "admin":
         total_admins = db.query(func.count(models.User.id)).filter(models.User.role == "admin").scalar() or 0
         if total_admins <= 1:
             return _redirect("/admin", error="At least one admin account is required.")
@@ -379,7 +379,7 @@ def forecast_api(run_id: int, request: Request, db: Session = Depends(get_db)):
         "summary": json.loads(run.summary_json),
         "historical": json.loads(run.historical_json),
         "forecast": json.loads(run.forecast_json),
-        "created_at": run.created_at.isoformat() if run.created_at else None,
+        "created_at": run.created_at.isoformat() if run.created_at is not None else None,
     }
 
 
@@ -393,10 +393,10 @@ def export_forecast_csv(run_id: int, request: Request, db: Session = Depends(get
     if not run:
         return _redirect("/dashboard", error="Forecast run not found.")
 
-    historical = json.loads(run.historical_json)
-    forecast = json.loads(run.forecast_json)
-    summary = json.loads(run.summary_json)
-    created_at = run.created_at.isoformat() if run.created_at else None
+    historical = json.loads(str(run.historical_json))
+    forecast = json.loads(str(run.forecast_json))
+    summary = json.loads(str(run.summary_json))
+    created_at = run.created_at.isoformat() if run.created_at is not None else None
 
     csv_bytes = build_forecast_csv_bytes(
         product_name=run.product_name,
@@ -424,9 +424,9 @@ def export_forecast_pdf(run_id: int, request: Request, db: Session = Depends(get
     if not run:
         return _redirect("/dashboard", error="Forecast run not found.")
 
-    historical = json.loads(run.historical_json)
-    forecast = json.loads(run.forecast_json)
-    summary = json.loads(run.summary_json)
+    historical = json.loads(str(run.historical_json))
+    forecast = json.loads(str(run.forecast_json))
+    summary = json.loads(str(run.summary_json))
     created_at = run.created_at.isoformat() if run.created_at else None
 
     pdf_bytes = build_forecast_pdf_bytes(
