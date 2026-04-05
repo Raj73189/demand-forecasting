@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: demand-forecasting-system
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: DATABASE_URL
+        value: postgresql+psycopg://postgres:[YOUR-PASSWORD]@db.eakopdyqdubxnmcwlfot.supabase.co:5432/postgres?sslmode=require
+      - key: ADMIN_EMAIL
+        value: dusmantadhal10sc14@gmail.com
