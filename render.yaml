@@ -13,6 +13,6 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.11
       - key: DATABASE_URL
-        value: postgresql+psycopg://postgres:YOUR_URL_ENCODED_PASSWORD@db.eakopdyqdubxnmcwlfot.supabase.co:5432/postgres?sslmode=require
+        value: postgresql+psycopg://postgres:dusmanta090876@db.eakopdyqdubxnmcwlfot.supabase.co:5432/postgres?sslmode=require
       - key: ADMIN_EMAIL
         value: dusmantadhal10sc14@gmail.com
