@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, g
 import pandas as pd
+import os
 
 from src.config import DATA_PATH, ORDER, SEASONAL_ORDER, TRAIN_MAX_ROWS
 from src.preprocessing import load_and_clean
