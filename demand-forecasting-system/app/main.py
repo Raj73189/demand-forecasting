@@ -10,15 +10,15 @@ from sqlalchemy import desc, func, inspect, text
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from app import auth, models
-from app.config import get_settings
-from app.database import Base, SessionLocal, engine, get_db
-from app.exporters import (
+from . import auth, models
+from .config import get_settings
+from .database import Base, SessionLocal, engine, get_db
+from .exporters import (
     build_forecast_csv_bytes,
     build_forecast_pdf_bytes,
     make_safe_filename,
 )
-from app.forecasting import ForecastInputError, build_forecast, parse_history_csv
+from .forecasting import ForecastInputError, build_forecast, parse_history_csv
 
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))

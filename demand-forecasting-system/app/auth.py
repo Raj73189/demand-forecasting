@@ -4,7 +4,7 @@ from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 from starlette.requests import Request
 
-from app import models
+from . import models
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 

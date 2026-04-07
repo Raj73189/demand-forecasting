@@ -67,10 +67,36 @@ Optional: edit `.env` and set a stronger `SECRET_KEY`.
 ### 4) Run app
 
 ```powershell
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --env-file .env
 ```
 
 Open: `http://127.0.0.1:8000`
+
+### If PowerShell Is Not Working
+
+Use Command Prompt instead:
+
+```bat
+setup-local.bat
+start-local.bat
+```
+
+`start-local.bat` runs without `--reload` for maximum compatibility on locked-down Windows setups.
+
+PowerShell fallback without activation:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+Copy-Item .env.example .env -ErrorAction SilentlyContinue
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --env-file .env
+```
+
+If `--reload` causes Windows permission errors, run:
+
+```powershell
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --env-file .env
+```
 
 Recommended Python version: `3.11` to `3.13`.
 

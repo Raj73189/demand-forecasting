@@ -1,8 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-from app.config import get_settings
-
+from .config import get_settings
 settings = get_settings()
 
 connect_args = {}
