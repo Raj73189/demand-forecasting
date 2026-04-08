@@ -1,5 +1,6 @@
 import csv
 import io
+import math
 from datetime import date, datetime
 from statistics import mean, stdev
 from typing import Any
@@ -50,7 +51,10 @@ def _parse_number(raw: str) -> float | None:
     if not value:
         return None
     try:
-        return float(value)
+        parsed = float(value)
+        if math.isnan(parsed) or math.isinf(parsed):
+            return None
+        return parsed
     except ValueError:
         return None
 

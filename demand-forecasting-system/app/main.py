@@ -1,5 +1,7 @@
 import json
 import os
+import re
+import secrets
 import sys
 from datetime import timedelta
 from pathlib import Path
@@ -41,11 +43,12 @@ app = Flask(
     static_folder=str(BASE_DIR / "static"),
     static_url_path="/static",
 )
+is_debug = os.getenv("FLASK_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
 app.config.update(
     SECRET_KEY=settings.secret_key,
     SESSION_COOKIE_NAME=settings.session_cookie_name,
     SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=False,
+    SESSION_COOKIE_SECURE=not is_debug,
     SESSION_PERMANENT=True,
     PERMANENT_SESSION_LIFETIME=timedelta(days=7),
 )
@@ -113,6 +116,22 @@ def _get_run_with_access(
 _init_database()
 
 
+@app.before_request
+def csrf_protect() -> Response | None:
+    if request.method == "POST":
+        token = session.get("csrf_token")
+        if not token or token != request.form.get("csrf_token"):
+            return _redirect("/login", error="CSRF token mismatch. Please try again.")
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_hex(16)
+    return None
+
+
+@app.context_processor
+def inject_csrf() -> dict[str, str | None]:
+    return dict(csrf_token=session.get("csrf_token"))
+
+
 @app.get("/")
 def home() -> Response:
     with SessionLocal() as db:
@@ -149,8 +168,11 @@ def register() -> Response:
     with SessionLocal() as db:
         if "@" not in email or "." not in email:
             return _redirect("/register", error="Please enter a valid email.")
-        if len(password) < 6:
-            return _redirect("/register", error="Password must be at least 6 characters.")
+        if len(password) < 8 or not re.search(r"[A-Z]", password) or not re.search(r"[0-9]", password):
+            return _redirect(
+                "/register",
+                error="Password must be at least 8 characters long, and contain at least 1 uppercase letter and 1 number.",
+            )
         if auth.get_user_by_email(db, email):
             return _redirect("/register", error="An account with this email already exists.")
 

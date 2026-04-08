@@ -1,0 +1,32 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.0, pytest-8.3.5, pluggy-1.6.0
+rootdir: C:\Users\dusma\my codes\demand-forecasting-system
+configfile: pytest.ini
+testpaths: tests
+plugins: anyio-4.13.0
+collected 4 items
+
+tests\test_exporters.py .F.                                              [ 75%]
+tests\test_forecasting.py .                                              [100%]
+
+================================== FAILURES ===================================
+___________________ test_pdf_export_starts_with_pdf_header ____________________
+
+    def test_pdf_export_starts_with_pdf_header():
+        historical, forecast, summary = _sample_payload()
+        pdf_bytes = build_forecast_pdf_bytes(
+            product_name="Phone X",
+            historical=historical,
+            forecast=forecast,
+            summary=summary,
+            created_at="2026-04-06T00:00:00+00:00",
+        )
+>       assert pdf_bytes.startswith(b"%PDF-1.4")
+E       AssertionError: assert False
+E        +  where False = <built-in method startswith of bytes object at 0x000002416E97A0E0>(b'%PDF-1.4')
+E        +    where <built-in method startswith of bytes object at 0x000002416E97A0E0> = b'%PDF-1.3\n1 0 obj\n<<\n/Count 1\n/Kids [3 0 R]\n/MediaBox [0 0 595.28 841.89]\n/Type /Pages\n>>\nendobj\n2 0 obj\n<<...n/Info 7 0 R\n/ID [<9C99C78F6F53D77B728C8B355F53D548><9C99C78F6F53D77B728C8B355F53D548>]\n>>\nstartxref\n1011\n%%EOF\n'.startswith
+
+tests\test_exporters.py:47: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_exporters.py::test_pdf_export_starts_with_pdf_header - Asse...
+========================= 1 failed, 3 passed in 0.60s =========================

@@ -44,7 +44,7 @@ def test_pdf_export_starts_with_pdf_header():
         summary=summary,
         created_at="2026-04-06T00:00:00+00:00",
     )
-    assert pdf_bytes.startswith(b"%PDF-1.4")
+    assert pdf_bytes.startswith(b"%PDF-")
 
 
 def test_filename_sanitization():
