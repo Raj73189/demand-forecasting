@@ -29,13 +29,13 @@ if not exist ".env" (
 echo [start] Launching app at http://127.0.0.1:8000
 if defined USE_VENV (
   ".venv\Scripts\python.exe" -m flask --app app.main:app --env-file .env run --host 0.0.0.0 --port 8000
-  exit /b %errorlevel%
+  exit /b
 )
 
 py -3 --version >nul 2>&1
 if not errorlevel 1 (
   py -3 -m flask --app app.main:app --env-file .env run --host 0.0.0.0 --port 8000
-  exit /b %errorlevel%
+  exit /b
 )
 
 python -m flask --app app.main:app --env-file .env run --host 0.0.0.0 --port 8000
