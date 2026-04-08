@@ -1,8 +1,8 @@
-from typing import Optional
+from collections.abc import Mapping
+from typing import Any, Optional
 
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
-from starlette.requests import Request
 
 from . import models
 
@@ -39,9 +39,13 @@ def authenticate_user(db: Session, email: str, password: str) -> Optional[models
     return user
 
 
-def get_current_user(request: Request, db: Session) -> Optional[models.User]:
-    user_id = request.session.get("user_id")
+def get_current_user(session_data: Mapping[str, Any], db: Session) -> Optional[models.User]:
+    user_id = session_data.get("user_id")
     if not user_id:
+        return None
+    try:
+        user_id = int(user_id)
+    except (TypeError, ValueError):
         return None
     return db.query(models.User).filter(models.User.id == user_id).first()
 

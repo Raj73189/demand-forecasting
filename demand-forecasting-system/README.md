@@ -14,7 +14,7 @@ A deployable web app where users can:
 
 ## Tech Stack
 
-- Backend: FastAPI
+- Backend: Flask
 - Views: Jinja2 templates + Chart.js
 - Forecasting: custom trend + seasonality model (pure Python)
 - Auth: Session-based login with hashed passwords
@@ -67,7 +67,7 @@ Optional: edit `.env` and set a stronger `SECRET_KEY`.
 ### 4) Run app
 
 ```powershell
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --env-file .env
+flask --app app.main:app --env-file .env run --host 0.0.0.0 --port 8000 --debug
 ```
 
 Open: `http://127.0.0.1:8000`
@@ -81,7 +81,7 @@ setup-local.bat
 start-local.bat
 ```
 
-`start-local.bat` runs without `--reload` for maximum compatibility on locked-down Windows setups.
+`start-local.bat` runs without `--debug` for maximum compatibility on locked-down Windows setups.
 
 PowerShell fallback without activation:
 
@@ -89,13 +89,13 @@ PowerShell fallback without activation:
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 Copy-Item .env.example .env -ErrorAction SilentlyContinue
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --env-file .env
+.\.venv\Scripts\python.exe -m flask --app app.main:app --env-file .env run --host 0.0.0.0 --port 8000 --debug
 ```
 
-If `--reload` causes Windows permission errors, run:
+If `--debug` causes Windows permission errors, run:
 
 ```powershell
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --env-file .env
+python -m flask --app app.main:app --env-file .env run --host 0.0.0.0 --port 8000
 ```
 
 Recommended Python version: `3.11` to `3.13`.
@@ -147,7 +147,7 @@ pytest
    - If Supabase gives `postgresql://...`, use `postgresql+psycopg://...`
 4. In Render, create a `Web Service` from your GitHub repo:
    - Build command: `pip install -r requirements.txt`
-   - Start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+   - Start command: `python -m app.main`
    - Python version: `3.11.x`
 5. Set these env vars in Render:
    - `SECRET_KEY` = long random string
@@ -158,7 +158,7 @@ pytest
 7. Register/login using `ADMIN_EMAIL`, then open `/admin` to confirm admin access.
 
 Why this combo:
-- Render gives a free Python web service for FastAPI apps.
+- Render gives a free Python web service for Flask apps.
 - Supabase free plan gives managed Postgres on a separate free tier.
 - This avoids losing data from local SQLite files on free web services.
 

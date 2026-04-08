@@ -1,46 +1,54 @@
 import json
+import os
+import sys
+from datetime import timedelta
 from pathlib import Path
 from urllib.parse import urlencode
 
-from fastapi import Depends, FastAPI, File, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+from flask import Flask, Response, jsonify, redirect, render_template, request, session
 from sqlalchemy import desc, func, inspect, text
 from sqlalchemy.orm import Session
-from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth, models
-from .config import get_settings
-from .database import Base, SessionLocal, engine, get_db
-from .exporters import (
-    build_forecast_csv_bytes,
-    build_forecast_pdf_bytes,
-    make_safe_filename,
-)
-from .forecasting import ForecastInputError, build_forecast, parse_history_csv
+if __package__ in {None, ""}:
+    # Allow running the file directly with `python app/main.py`.
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from app import auth, models
+    from app.config import get_settings
+    from app.database import Base, SessionLocal, engine
+    from app.exporters import (
+        build_forecast_csv_bytes,
+        build_forecast_pdf_bytes,
+        make_safe_filename,
+    )
+    from app.forecasting import ForecastInputError, build_forecast, parse_history_csv
+else:
+    from . import auth, models
+    from .config import get_settings
+    from .database import Base, SessionLocal, engine
+    from .exporters import (
+        build_forecast_csv_bytes,
+        build_forecast_pdf_bytes,
+        make_safe_filename,
+    )
+    from .forecasting import ForecastInputError, build_forecast, parse_history_csv
 
 BASE_DIR = Path(__file__).resolve().parent
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 settings = get_settings()
 
-app = FastAPI(title=settings.app_name)
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=settings.secret_key,
-    session_cookie=settings.session_cookie_name,
-    max_age=60 * 60 * 24 * 7,
-    same_site="lax",
-    https_only=False,
+app = Flask(
+    __name__,
+    template_folder=str(BASE_DIR / "templates"),
+    static_folder=str(BASE_DIR / "static"),
+    static_url_path="/static",
 )
-app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
-
-
-@app.on_event("startup")
-def startup() -> None:
-    Base.metadata.create_all(bind=engine)
-    _ensure_role_column()
-    _promote_configured_admin()
+app.config.update(
+    SECRET_KEY=settings.secret_key,
+    SESSION_COOKIE_NAME=settings.session_cookie_name,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=False,
+    SESSION_PERMANENT=True,
+    PERMANENT_SESSION_LIFETIME=timedelta(days=7),
+)
 
 
 def _ensure_role_column() -> None:
@@ -61,22 +69,30 @@ def _promote_configured_admin() -> None:
     db = SessionLocal()
     try:
         user = auth.get_user_by_email(db, settings.admin_email)
-        if user is not None and user.role != "admin":
+        if user is None:
+            return
+        if user.role != "admin":
             user.role = "admin"
             db.commit()
     finally:
         db.close()
 
 
-def _redirect(path: str, **query_params: str) -> RedirectResponse:
+def _init_database() -> None:
+    Base.metadata.create_all(bind=engine)
+    _ensure_role_column()
+    _promote_configured_admin()
+
+
+def _redirect(path: str, **query_params: str) -> Response:
     filtered = {k: v for k, v in query_params.items() if v}
     qs = urlencode(filtered)
     url = f"{path}?{qs}" if qs else path
-    return RedirectResponse(url=url, status_code=303)
+    return redirect(url, code=303)
 
 
-def _require_user(request: Request, db: Session) -> models.User | None:
-    return auth.get_current_user(request, db)
+def _require_user(db: Session) -> models.User | None:
+    return auth.get_current_user(session, db)
 
 
 def _get_run_with_access(
@@ -89,314 +105,324 @@ def _get_run_with_access(
     run = db.query(models.ForecastRun).filter(models.ForecastRun.id == run_id).first()
     if not run:
         return None
-    if (run.user_id == current_user.id) is True or auth.is_admin(current_user):
+    if run.user_id == current_user.id or auth.is_admin(current_user):
         return run
     return None
 
 
-@app.get("/", response_class=HTMLResponse)
-def home(request: Request, db: Session = Depends(get_db)):
-    user = _require_user(request, db)
+_init_database()
+
+
+@app.get("/")
+def home() -> Response:
+    with SessionLocal() as db:
+        user = _require_user(db)
     if user:
         return _redirect("/dashboard")
     return _redirect("/login")
 
 
 @app.get("/health")
-def health():
-    return {"status": "ok"}
+def health() -> Response:
+    return jsonify({"status": "ok"})
 
 
-@app.get("/register", response_class=HTMLResponse)
-def register_page(request: Request, db: Session = Depends(get_db)):
-    if _require_user(request, db):
-        return _redirect("/dashboard")
-    return templates.TemplateResponse(
-        name="register.html",
-        request=request,
-        context={
-            "error": request.query_params.get("error"),
-            "message": request.query_params.get("message"),
-            "user": None,
-        },
+@app.get("/register")
+def register_page() -> str | Response:
+    with SessionLocal() as db:
+        if _require_user(db):
+            return _redirect("/dashboard")
+
+    return render_template(
+        "register.html",
+        error=request.args.get("error"),
+        message=request.args.get("message"),
+        user=None,
     )
 
 
 @app.post("/register")
-def register(
-    request: Request,
-    email: str = Form(...),
-    password: str = Form(...),
-    db: Session = Depends(get_db),
-):
-    if "@" not in email or "." not in email:
-        return _redirect("/register", error="Please enter a valid email.")
-    if len(password) < 6:
-        return _redirect("/register", error="Password must be at least 6 characters.")
-    if auth.get_user_by_email(db, email):
-        return _redirect("/register", error="An account with this email already exists.")
+def register() -> Response:
+    email = request.form.get("email", "").strip()
+    password = request.form.get("password", "")
 
-    user = auth.create_user(db, email, password)
-    request.session["user_id"] = user.id
+    with SessionLocal() as db:
+        if "@" not in email or "." not in email:
+            return _redirect("/register", error="Please enter a valid email.")
+        if len(password) < 6:
+            return _redirect("/register", error="Password must be at least 6 characters.")
+        if auth.get_user_by_email(db, email):
+            return _redirect("/register", error="An account with this email already exists.")
+
+        user = auth.create_user(db, email, password)
+
+    session["user_id"] = user.id
+    session.permanent = True
     return _redirect("/dashboard", message="Account created successfully.")
 
 
-@app.get("/login", response_class=HTMLResponse)
-def login_page(request: Request, db: Session = Depends(get_db)):
-    if _require_user(request, db):
-        return _redirect("/dashboard")
-    return templates.TemplateResponse(
-        name="login.html",
-        request=request,
-        context={
-            "error": request.query_params.get("error"),
-            "message": request.query_params.get("message"),
-            "user": None,
-        },
+@app.get("/login")
+def login_page() -> str | Response:
+    with SessionLocal() as db:
+        if _require_user(db):
+            return _redirect("/dashboard")
+
+    return render_template(
+        "login.html",
+        error=request.args.get("error"),
+        message=request.args.get("message"),
+        user=None,
     )
 
 
 @app.post("/login")
-def login(
-    request: Request,
-    email: str = Form(...),
-    password: str = Form(...),
-    db: Session = Depends(get_db),
-):
-    user = auth.authenticate_user(db, email, password)
-    if not user:
-        return _redirect("/login", error="Invalid email or password.")
-    request.session["user_id"] = user.id
+def login() -> Response:
+    email = request.form.get("email", "")
+    password = request.form.get("password", "")
+
+    with SessionLocal() as db:
+        user = auth.authenticate_user(db, email, password)
+        if not user:
+            return _redirect("/login", error="Invalid email or password.")
+
+    session["user_id"] = user.id
+    session.permanent = True
     return _redirect("/dashboard", message="Welcome back.")
 
 
 @app.post("/logout")
-def logout(request: Request):
-    request.session.clear()
+def logout() -> Response:
+    session.clear()
     return _redirect("/login", message="You have been logged out.")
 
 
-@app.get("/dashboard", response_class=HTMLResponse)
-def dashboard(request: Request, run_id: int | None = None, db: Session = Depends(get_db)):
-    user = _require_user(request, db)
-    if not user:
-        return _redirect("/login", message="Please login first.")
+@app.get("/dashboard")
+def dashboard() -> str | Response:
+    run_id = request.args.get("run_id", type=int)
+    with SessionLocal() as db:
+        user = _require_user(db)
+        if not user:
+            return _redirect("/login", message="Please login first.")
 
-    runs = (
-        db.query(models.ForecastRun)
-        .filter(models.ForecastRun.user_id == user.id)
-        .order_by(desc(models.ForecastRun.created_at))
-        .all()
-    )
-
-    active_run = None
-    if run_id:
-        active_run = (
+        runs = (
             db.query(models.ForecastRun)
-            .filter(models.ForecastRun.id == run_id, models.ForecastRun.user_id == user.id)
-            .first()
+            .filter(models.ForecastRun.user_id == user.id)
+            .order_by(desc(models.ForecastRun.created_at))
+            .all()
         )
-    if not active_run and runs:
-        active_run = runs[0]
 
-    context = {
-        "user": user,
-        "runs": runs,
-        "active_run": active_run,
-        "message": request.query_params.get("message"),
-        "error": request.query_params.get("error"),
-        "summary": None,
-        "historical": [],
-        "forecast": [],
-        "chart_payload": "{}",
-    }
+        active_run = None
+        if run_id:
+            active_run = (
+                db.query(models.ForecastRun)
+                .filter(models.ForecastRun.id == run_id, models.ForecastRun.user_id == user.id)
+                .first()
+            )
+        if not active_run and runs:
+            active_run = runs[0]
 
-    if active_run:
-        summary = json.loads(str(active_run.summary_json))
-        historical = json.loads(str(active_run.historical_json))
-        forecast = json.loads(str(active_run.forecast_json))
-
-        chart = {
-            "labels": [item["date"] for item in historical + forecast],
-            "historical_values": [item["demand"] for item in historical] + [None] * len(forecast),
-            "forecast_values": [None] * len(historical) + [item["demand"] for item in forecast],
+        context = {
+            "user": user,
+            "runs": runs,
+            "active_run": active_run,
+            "message": request.args.get("message"),
+            "error": request.args.get("error"),
+            "summary": None,
+            "historical": [],
+            "forecast": [],
+            "chart_payload": "{}",
         }
 
-        context.update(
-            {
-                "summary": summary,
-                "historical": historical,
-                "forecast": forecast,
-                "chart_payload": json.dumps(chart),
+        if active_run:
+            summary = json.loads(str(active_run.summary_json))
+            historical = json.loads(str(active_run.historical_json))
+            forecast = json.loads(str(active_run.forecast_json))
+
+            chart = {
+                "labels": [item["date"] for item in historical + forecast],
+                "historical_values": [item["demand"] for item in historical] + [None] * len(forecast),
+                "forecast_values": [None] * len(historical) + [item["demand"] for item in forecast],
             }
-        )
 
-    return templates.TemplateResponse(name="dashboard.html", request=request, context=context)
+            context.update(
+                {
+                    "summary": summary,
+                    "historical": historical,
+                    "forecast": forecast,
+                    "chart_payload": json.dumps(chart),
+                }
+            )
 
-
-@app.get("/admin", response_class=HTMLResponse)
-def admin_dashboard(request: Request, db: Session = Depends(get_db)):
-    current_user = _require_user(request, db)
-    if not current_user:
-        return _redirect("/login", message="Please login first.")
-    if not auth.is_admin(current_user):
-        return _redirect("/dashboard", error="Admin access required.")
-
-    total_users = db.query(func.count(models.User.id)).scalar() or 0
-    total_forecasts = db.query(func.count(models.ForecastRun.id)).scalar() or 0
-    total_admins = db.query(func.count(models.User.id)).filter(models.User.role == "admin").scalar() or 0
-
-    users = (
-        db.query(
-            models.User.id,
-            models.User.email,
-            models.User.role,
-            models.User.created_at,
-            func.count(models.ForecastRun.id).label("forecast_count"),
-        )
-        .outerjoin(models.ForecastRun, models.ForecastRun.user_id == models.User.id)
-        .group_by(models.User.id, models.User.email, models.User.role, models.User.created_at)
-        .order_by(desc(models.User.created_at))
-        .all()
-    )
-
-    recent_runs = (
-        db.query(
-            models.ForecastRun.id,
-            models.ForecastRun.product_name,
-            models.ForecastRun.input_points,
-            models.ForecastRun.created_at,
-            models.User.email.label("user_email"),
-        )
-        .join(models.User, models.User.id == models.ForecastRun.user_id)
-        .order_by(desc(models.ForecastRun.created_at))
-        .limit(20)
-        .all()
-    )
-
-    return templates.TemplateResponse(
-        name="admin.html",
-        request=request,
-        context={
-            "user": current_user,
-            "users": users,
-            "recent_runs": recent_runs,
-            "total_users": total_users,
-            "total_forecasts": total_forecasts,
-            "total_admins": total_admins,
-            "message": request.query_params.get("message"),
-            "error": request.query_params.get("error"),
-        },
-    )
+    return render_template("dashboard.html", **context)
 
 
-@app.post("/admin/users/{user_id}/role")
-def update_user_role(
-    user_id: int,
-    request: Request,
-    role: str = Form(...),
-    db: Session = Depends(get_db),
-):
-    current_user = _require_user(request, db)
-    if not current_user:
-        return _redirect("/login", message="Please login first.")
-    if not auth.is_admin(current_user):
-        return _redirect("/dashboard", error="Admin access required.")
+@app.get("/admin")
+def admin_dashboard() -> str | Response:
+    with SessionLocal() as db:
+        current_user = _require_user(db)
+        if not current_user:
+            return _redirect("/login", message="Please login first.")
+        if not auth.is_admin(current_user):
+            return _redirect("/dashboard", error="Admin access required.")
 
-    normalized_role = role.strip().lower()
-    if normalized_role not in {"user", "admin"}:
-        return _redirect("/admin", error="Invalid role.")
-
-    target_user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not target_user:
-        return _redirect("/admin", error="User not found.")
-
-    if current_user.id == target_user.id and normalized_role != "admin":
-        return _redirect("/admin", error="You cannot remove your own admin role.")
-
-    if normalized_role == "user" and target_user.role == "admin":
+        total_users = db.query(func.count(models.User.id)).scalar() or 0
+        total_forecasts = db.query(func.count(models.ForecastRun.id)).scalar() or 0
         total_admins = db.query(func.count(models.User.id)).filter(models.User.role == "admin").scalar() or 0
-        if total_admins <= 1:
-            return _redirect("/admin", error="At least one admin account is required.")
 
-    target_user.role = normalized_role
-    db.commit()
-    return _redirect("/admin", message=f"Role updated for {target_user.email}.")
+        users = (
+            db.query(
+                models.User.id,
+                models.User.email,
+                models.User.role,
+                models.User.created_at,
+                func.count(models.ForecastRun.id).label("forecast_count"),
+            )
+            .outerjoin(models.ForecastRun, models.ForecastRun.user_id == models.User.id)
+            .group_by(models.User.id, models.User.email, models.User.role, models.User.created_at)
+            .order_by(desc(models.User.created_at))
+            .all()
+        )
+
+        recent_runs = (
+            db.query(
+                models.ForecastRun.id,
+                models.ForecastRun.product_name,
+                models.ForecastRun.input_points,
+                models.ForecastRun.created_at,
+                models.User.email.label("user_email"),
+            )
+            .join(models.User, models.User.id == models.ForecastRun.user_id)
+            .order_by(desc(models.ForecastRun.created_at))
+            .limit(20)
+            .all()
+        )
+
+    return render_template(
+        "admin.html",
+        user=current_user,
+        users=users,
+        recent_runs=recent_runs,
+        total_users=total_users,
+        total_forecasts=total_forecasts,
+        total_admins=total_admins,
+        message=request.args.get("message"),
+        error=request.args.get("error"),
+    )
+
+
+@app.post("/admin/users/<int:user_id>/role")
+def update_user_role(user_id: int) -> Response:
+    role = request.form.get("role", "")
+
+    with SessionLocal() as db:
+        current_user = _require_user(db)
+        if not current_user:
+            return _redirect("/login", message="Please login first.")
+        if not auth.is_admin(current_user):
+            return _redirect("/dashboard", error="Admin access required.")
+
+        normalized_role = role.strip().lower()
+        if normalized_role not in {"user", "admin"}:
+            return _redirect("/admin", error="Invalid role.")
+
+        target_user = db.query(models.User).filter(models.User.id == user_id).first()
+        if not target_user:
+            return _redirect("/admin", error="User not found.")
+
+        if current_user.id == target_user.id and normalized_role != "admin":
+            return _redirect("/admin", error="You cannot remove your own admin role.")
+
+        if normalized_role == "user" and target_user.role == "admin":
+            total_admins = db.query(func.count(models.User.id)).filter(models.User.role == "admin").scalar() or 0
+            if total_admins <= 1:
+                return _redirect("/admin", error="At least one admin account is required.")
+
+        target_user.role = normalized_role
+        db.commit()
+        target_email = target_user.email
+
+    return _redirect("/admin", message=f"Role updated for {target_email}.")
 
 
 @app.post("/forecast")
-async def create_forecast(
-    request: Request,
-    product_name: str = Form(...),
-    history_file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-):
-    user = _require_user(request, db)
-    if not user:
-        return _redirect("/login", message="Please login first.")
+def create_forecast() -> Response:
+    product_name = request.form.get("product_name", "").strip()
+    history_file = request.files.get("history_file")
 
-    if not product_name.strip():
-        return _redirect("/dashboard", error="Product name is required.")
+    with SessionLocal() as db:
+        user = _require_user(db)
+        if not user:
+            return _redirect("/login", message="Please login first.")
 
-    try:
-        file_content = await history_file.read()
-        monthly = parse_history_csv(file_content)
-        result = build_forecast(monthly, horizon_months=60)
-    except ForecastInputError as exc:
-        return _redirect("/dashboard", error=str(exc))
-    except Exception:
-        return _redirect("/dashboard", error="Forecasting failed. Please review your data and try again.")
+        if not product_name:
+            return _redirect("/dashboard", error="Product name is required.")
+        if history_file is None or not history_file.filename:
+            return _redirect("/dashboard", error="CSV file is required.")
 
-    run = models.ForecastRun(
-        user_id=user.id,
-        product_name=product_name.strip(),
-        input_points=len(result["historical"]),
-        historical_json=json.dumps(result["historical"]),
-        forecast_json=json.dumps(result["forecast"]),
-        summary_json=json.dumps(result["summary"]),
-    )
-    db.add(run)
-    db.commit()
-    db.refresh(run)
+        try:
+            file_content = history_file.read()
+            monthly = parse_history_csv(file_content)
+            result = build_forecast(monthly, horizon_months=60)
+        except ForecastInputError as exc:
+            return _redirect("/dashboard", error=str(exc))
+        except Exception:
+            return _redirect("/dashboard", error="Forecasting failed. Please review your data and try again.")
 
-    return _redirect("/dashboard", run_id=str(run.id), message=f"Forecast generated for {product_name.strip()}.")
+        run = models.ForecastRun(
+            user_id=user.id,
+            product_name=product_name,
+            input_points=len(result["historical"]),
+            historical_json=json.dumps(result["historical"]),
+            forecast_json=json.dumps(result["forecast"]),
+            summary_json=json.dumps(result["summary"]),
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+        run_id = run.id
 
-
-@app.get("/api/forecast/{run_id}")
-def forecast_api(run_id: int, request: Request, db: Session = Depends(get_db)):
-    user = _require_user(request, db)
-    if not user:
-        return JSONResponse(status_code=401, content={"error": "Authentication required."})
-
-    run = _get_run_with_access(db, user, run_id)
-    if not run:
-        return JSONResponse(status_code=404, content={"error": "Forecast run not found."})
-
-    return {
-        "id": run.id,
-        "product_name": run.product_name,
-        "input_points": run.input_points,
-        "summary": json.loads(run.summary_json),
-        "historical": json.loads(run.historical_json),
-        "forecast": json.loads(run.forecast_json),
-        "created_at": run.created_at.isoformat() if run.created_at is not None else None,
-    }
+    return _redirect("/dashboard", run_id=str(run_id), message=f"Forecast generated for {product_name}.")
 
 
-@app.get("/export/forecast/{run_id}.csv")
-def export_forecast_csv(run_id: int, request: Request, db: Session = Depends(get_db)):
-    user = _require_user(request, db)
-    if not user:
-        return _redirect("/login", message="Please login first.")
+@app.get("/api/forecast/<int:run_id>")
+def forecast_api(run_id: int) -> tuple[Response, int] | Response:
+    with SessionLocal() as db:
+        user = _require_user(db)
+        if not user:
+            return jsonify({"error": "Authentication required."}), 401
 
-    run = _get_run_with_access(db, user, run_id)
-    if not run:
-        return _redirect("/dashboard", error="Forecast run not found.")
+        run = _get_run_with_access(db, user, run_id)
+        if not run:
+            return jsonify({"error": "Forecast run not found."}), 404
 
-    historical = json.loads(str(run.historical_json))
-    forecast = json.loads(str(run.forecast_json))
-    summary = json.loads(str(run.summary_json))
-    created_at = run.created_at.isoformat() if run.created_at is not None else None
+        payload = {
+            "id": run.id,
+            "product_name": run.product_name,
+            "input_points": run.input_points,
+            "summary": json.loads(str(run.summary_json)),
+            "historical": json.loads(str(run.historical_json)),
+            "forecast": json.loads(str(run.forecast_json)),
+            "created_at": run.created_at.isoformat() if run.created_at is not None else None,
+        }
+
+    return jsonify(payload)
+
+
+@app.get("/export/forecast/<int:run_id>.csv")
+def export_forecast_csv(run_id: int) -> Response:
+    with SessionLocal() as db:
+        user = _require_user(db)
+        if not user:
+            return _redirect("/login", message="Please login first.")
+
+        run = _get_run_with_access(db, user, run_id)
+        if not run:
+            return _redirect("/dashboard", error="Forecast run not found.")
+
+        historical = json.loads(str(run.historical_json))
+        forecast = json.loads(str(run.forecast_json))
+        summary = json.loads(str(run.summary_json))
+        created_at = run.created_at.isoformat() if run.created_at is not None else None
 
     csv_bytes = build_forecast_csv_bytes(
         product_name=run.product_name,
@@ -408,26 +434,27 @@ def export_forecast_csv(run_id: int, request: Request, db: Session = Depends(get
     filename = make_safe_filename(f"{run.product_name}_forecast_{run.id}.csv")
 
     return Response(
-        content=csv_bytes,
-        media_type="text/csv; charset=utf-8",
+        csv_bytes,
+        content_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
-@app.get("/export/forecast/{run_id}.pdf")
-def export_forecast_pdf(run_id: int, request: Request, db: Session = Depends(get_db)):
-    user = _require_user(request, db)
-    if not user:
-        return _redirect("/login", message="Please login first.")
+@app.get("/export/forecast/<int:run_id>.pdf")
+def export_forecast_pdf(run_id: int) -> Response:
+    with SessionLocal() as db:
+        user = _require_user(db)
+        if not user:
+            return _redirect("/login", message="Please login first.")
 
-    run = _get_run_with_access(db, user, run_id)
-    if not run:
-        return _redirect("/dashboard", error="Forecast run not found.")
+        run = _get_run_with_access(db, user, run_id)
+        if not run:
+            return _redirect("/dashboard", error="Forecast run not found.")
 
-    historical = json.loads(str(run.historical_json))
-    forecast = json.loads(str(run.forecast_json))
-    summary = json.loads(str(run.summary_json))
-    created_at = run.created_at.isoformat() if run.created_at else None
+        historical = json.loads(str(run.historical_json))
+        forecast = json.loads(str(run.forecast_json))
+        summary = json.loads(str(run.summary_json))
+        created_at = run.created_at.isoformat() if run.created_at else None
 
     pdf_bytes = build_forecast_pdf_bytes(
         product_name=run.product_name,
@@ -439,7 +466,14 @@ def export_forecast_pdf(run_id: int, request: Request, db: Session = Depends(get
     filename = make_safe_filename(f"{run.product_name}_forecast_{run.id}.pdf")
 
     return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
+        pdf_bytes,
+        content_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+if __name__ == "__main__":
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", "8000"))
+    debug = os.getenv("FLASK_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
+    app.run(host=host, port=port, debug=debug)

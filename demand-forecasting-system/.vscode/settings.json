@@ -1,9 +1,10 @@
 {
+    "python.defaultInterpreterPath": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
     "cSpell.words": [
         "errorlevel",
         "outerjoin",
         "setlocal",
-        "uvicorn",
+        "flask",
         "venv"
     ]
 }

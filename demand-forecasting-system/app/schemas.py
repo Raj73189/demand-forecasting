@@ -1,31 +1,25 @@
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, func
-from sqlalchemy.orm import relationship
+from dataclasses import asdict, dataclass
 
-from .database import Base
+@dataclass
+class HorizonDemand:
+    forecast: float
+    is_high_demand: bool
 
+    def __post_init__(self) -> None:
+        """Normalize and validate schema values."""
+        self.forecast = float(self.forecast)
+        if self.forecast < 0:
+            raise ValueError("forecast must be non-negative")
+        self.is_high_demand = bool(self.is_high_demand)
 
-class User(Base):
-    __tablename__ = "users"
+    def to_dict(self) -> dict[str, float | bool]:
+        """Return a JSON-serializable dictionary representation."""
+        return asdict(self)
 
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(255), unique=True, index=True, nullable=False)
-    password_hash = Column(String(255), nullable=False)
-    role = Column(String(20), nullable=False, default="user", server_default="user")
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-    forecasts = relationship("ForecastRun", back_populates="user", cascade="all, delete-orphan")
-
-
-class ForecastRun(Base):
-    __tablename__ = "forecast_runs"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
-    product_name = Column(String(255), nullable=False)
-    input_points = Column(Integer, nullable=False)
-    historical_json = Column(Text, nullable=False)
-    forecast_json = Column(Text, nullable=False)
-    summary_json = Column(Text, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-    user = relationship("User", back_populates="forecasts")
+    @classmethod
+    def from_dict(cls, data: dict[str, float | bool]) -> "HorizonDemand":
+        """Construct a schema instance from a plain dictionary."""
+        return cls(
+            forecast=float(data["forecast"]),
+            is_high_demand=bool(data["is_high_demand"]),
+        )
