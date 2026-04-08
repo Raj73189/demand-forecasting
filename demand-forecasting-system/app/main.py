@@ -7,7 +7,15 @@ from datetime import timedelta
 from pathlib import Path
 from urllib.parse import urlencode
 
-from flask import Flask, Response, jsonify, redirect, render_template, request, session
+from flask import (
+    Flask,
+    Response,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+)
 from sqlalchemy import desc, func, inspect, text
 from sqlalchemy.orm import Session
 
@@ -22,7 +30,11 @@ if __package__ in {None, ""}:
         build_forecast_pdf_bytes,
         make_safe_filename,
     )
-    from app.forecasting import ForecastInputError, build_forecast, parse_history_csv
+    from app.forecasting import (
+        ForecastInputError,
+        build_forecast,
+        parse_history_csv,
+    )
 else:
     from . import auth, models
     from .config import get_settings
@@ -32,7 +44,11 @@ else:
         build_forecast_pdf_bytes,
         make_safe_filename,
     )
-    from .forecasting import ForecastInputError, build_forecast, parse_history_csv
+    from .forecasting import (
+        ForecastInputError,
+        build_forecast,
+        parse_history_csv,
+    )
 
 BASE_DIR = Path(__file__).resolve().parent
 settings = get_settings()
@@ -43,7 +59,12 @@ app = Flask(
     static_folder=str(BASE_DIR / "static"),
     static_url_path="/static",
 )
-is_debug = os.getenv("FLASK_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
+is_debug = os.getenv("FLASK_DEBUG", "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 app.config.update(
     SECRET_KEY=settings.secret_key,
     SESSION_COOKIE_NAME=settings.session_cookie_name,
@@ -62,8 +83,18 @@ def _ensure_role_column() -> None:
     columns = {column["name"] for column in inspector.get_columns("users")}
     with engine.begin() as connection:
         if "role" not in columns:
-            connection.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'user' NOT NULL"))
-        connection.execute(text("UPDATE users SET role = 'user' WHERE role IS NULL OR role = ''"))
+            connection.execute(
+                text(
+                    "ALTER TABLE users ADD COLUMN role "
+                    "VARCHAR(20) DEFAULT 'user' NOT NULL"
+                )
+            )
+        connection.execute(
+            text(
+                "UPDATE users SET role = 'user' "
+                "WHERE role IS NULL OR role = ''"
+            )
+        )
 
 
 def _promote_configured_admin() -> None:
@@ -105,7 +136,11 @@ def _get_run_with_access(
 ) -> models.ForecastRun | None:
     if not current_user:
         return None
-    run = db.query(models.ForecastRun).filter(models.ForecastRun.id == run_id).first()
+    run = (
+        db.query(models.ForecastRun)
+        .filter(models.ForecastRun.id == run_id)
+        .first()
+    )
     if not run:
         return None
     if run.user_id == current_user.id or auth.is_admin(current_user):
@@ -121,7 +156,10 @@ def csrf_protect() -> Response | None:
     if request.method == "POST":
         token = session.get("csrf_token")
         if not token or token != request.form.get("csrf_token"):
-            return _redirect("/login", error="CSRF token mismatch. Please try again.")
+            return _redirect(
+                "/login",
+                error="CSRF token mismatch. Please try again.",
+            )
     if "csrf_token" not in session:
         session["csrf_token"] = secrets.token_hex(16)
     return None
@@ -168,13 +206,21 @@ def register() -> Response:
     with SessionLocal() as db:
         if "@" not in email or "." not in email:
             return _redirect("/register", error="Please enter a valid email.")
-        if len(password) < 8 or not re.search(r"[A-Z]", password) or not re.search(r"[0-9]", password):
+        has_uppercase = re.search(r"[A-Z]", password)
+        has_number = re.search(r"[0-9]", password)
+        if len(password) < 8 or not has_uppercase or not has_number:
             return _redirect(
                 "/register",
-                error="Password must be at least 8 characters long, and contain at least 1 uppercase letter and 1 number.",
+                error=(
+                    "Password must be at least 8 characters long, "
+                    "and contain at least 1 uppercase letter and 1 number."
+                ),
             )
         if auth.get_user_by_email(db, email):
-            return _redirect("/register", error="An account with this email already exists.")
+            return _redirect(
+                "/register",
+                error="An account with this email already exists.",
+            )
 
         user = auth.create_user(db, email, password)
 
@@ -237,7 +283,10 @@ def dashboard() -> str | Response:
         if run_id:
             active_run = (
                 db.query(models.ForecastRun)
-                .filter(models.ForecastRun.id == run_id, models.ForecastRun.user_id == user.id)
+                .filter(
+                    models.ForecastRun.id == run_id,
+                    models.ForecastRun.user_id == user.id,
+                )
                 .first()
             )
         if not active_run and runs:
@@ -262,8 +311,10 @@ def dashboard() -> str | Response:
 
             chart = {
                 "labels": [item["date"] for item in historical + forecast],
-                "historical_values": [item["demand"] for item in historical] + [None] * len(forecast),
-                "forecast_values": [None] * len(historical) + [item["demand"] for item in forecast],
+                "historical_values": [item["demand"] for item in historical]
+                + [None] * len(forecast),
+                "forecast_values": [None] * len(historical)
+                + [item["demand"] for item in forecast],
             }
 
             context.update(
@@ -288,8 +339,15 @@ def admin_dashboard() -> str | Response:
             return _redirect("/dashboard", error="Admin access required.")
 
         total_users = db.query(func.count(models.User.id)).scalar() or 0
-        total_forecasts = db.query(func.count(models.ForecastRun.id)).scalar() or 0
-        total_admins = db.query(func.count(models.User.id)).filter(models.User.role == "admin").scalar() or 0
+        total_forecasts = (
+            db.query(func.count(models.ForecastRun.id)).scalar() or 0
+        )
+        total_admins = (
+            db.query(func.count(models.User.id))
+            .filter(models.User.role == "admin")
+            .scalar()
+            or 0
+        )
 
         users = (
             db.query(
@@ -299,8 +357,16 @@ def admin_dashboard() -> str | Response:
                 models.User.created_at,
                 func.count(models.ForecastRun.id).label("forecast_count"),
             )
-            .outerjoin(models.ForecastRun, models.ForecastRun.user_id == models.User.id)
-            .group_by(models.User.id, models.User.email, models.User.role, models.User.created_at)
+            .outerjoin(
+                models.ForecastRun,
+                models.ForecastRun.user_id == models.User.id,
+            )
+            .group_by(
+                models.User.id,
+                models.User.email,
+                models.User.role,
+                models.User.created_at,
+            )
             .order_by(desc(models.User.created_at))
             .all()
         )
@@ -347,17 +413,32 @@ def update_user_role(user_id: int) -> Response:
         if normalized_role not in {"user", "admin"}:
             return _redirect("/admin", error="Invalid role.")
 
-        target_user = db.query(models.User).filter(models.User.id == user_id).first()
+        target_user = (
+            db.query(models.User)
+            .filter(models.User.id == user_id)
+            .first()
+        )
         if not target_user:
             return _redirect("/admin", error="User not found.")
 
         if current_user.id == target_user.id and normalized_role != "admin":
-            return _redirect("/admin", error="You cannot remove your own admin role.")
+            return _redirect(
+                "/admin",
+                error="You cannot remove your own admin role.",
+            )
 
         if normalized_role == "user" and target_user.role == "admin":
-            total_admins = db.query(func.count(models.User.id)).filter(models.User.role == "admin").scalar() or 0
+            total_admins = (
+                db.query(func.count(models.User.id))
+                .filter(models.User.role == "admin")
+                .scalar()
+                or 0
+            )
             if total_admins <= 1:
-                return _redirect("/admin", error="At least one admin account is required.")
+                return _redirect(
+                    "/admin",
+                    error="At least one admin account is required.",
+                )
 
         target_user.role = normalized_role
         db.commit()
@@ -388,7 +469,13 @@ def create_forecast() -> Response:
         except ForecastInputError as exc:
             return _redirect("/dashboard", error=str(exc))
         except Exception:
-            return _redirect("/dashboard", error="Forecasting failed. Please review your data and try again.")
+            return _redirect(
+                "/dashboard",
+                error=(
+                    "Forecasting failed. "
+                    "Please review your data and try again."
+                ),
+            )
 
         run = models.ForecastRun(
             user_id=user.id,
@@ -403,7 +490,11 @@ def create_forecast() -> Response:
         db.refresh(run)
         run_id = run.id
 
-    return _redirect("/dashboard", run_id=str(run_id), message=f"Forecast generated for {product_name}.")
+    return _redirect(
+        "/dashboard",
+        run_id=str(run_id),
+        message=f"Forecast generated for {product_name}.",
+    )
 
 
 @app.get("/api/forecast/<int:run_id>")
@@ -424,7 +515,11 @@ def forecast_api(run_id: int) -> tuple[Response, int] | Response:
             "summary": json.loads(str(run.summary_json)),
             "historical": json.loads(str(run.historical_json)),
             "forecast": json.loads(str(run.forecast_json)),
-            "created_at": run.created_at.isoformat() if run.created_at is not None else None,
+            "created_at": (
+                run.created_at.isoformat()
+                if run.created_at is not None
+                else None
+            ),
         }
 
     return jsonify(payload)
@@ -444,7 +539,9 @@ def export_forecast_csv(run_id: int) -> Response:
         historical = json.loads(str(run.historical_json))
         forecast = json.loads(str(run.forecast_json))
         summary = json.loads(str(run.summary_json))
-        created_at = run.created_at.isoformat() if run.created_at is not None else None
+        created_at = (
+            run.created_at.isoformat() if run.created_at is not None else None
+        )
 
     csv_bytes = build_forecast_csv_bytes(
         product_name=run.product_name,
@@ -497,5 +594,10 @@ def export_forecast_pdf(run_id: int) -> Response:
 if __name__ == "__main__":
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8000"))
-    debug = os.getenv("FLASK_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
+    debug = os.getenv("FLASK_DEBUG", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
     app.run(host=host, port=port, debug=debug)
