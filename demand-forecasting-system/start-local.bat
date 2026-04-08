@@ -26,6 +26,17 @@ if not exist ".env" (
   )
 )
 
+if not defined START_LOCAL_USE_ENV_DATABASE (
+  if not defined DATABASE_URL (
+    set "DATABASE_URL=sqlite:///forecasting.db"
+    echo [start] Using local SQLite database at forecasting.db
+  ) else (
+    echo [start] Using DATABASE_URL from current shell environment
+  )
+) else (
+  echo [start] Using DATABASE_URL from .env/current environment
+)
+
 echo [start] Launching app at http://127.0.0.1:8000
 if defined USE_VENV (
   ".venv\Scripts\python.exe" -m flask --app app.main:app --env-file .env run --host 0.0.0.0 --port 8000
