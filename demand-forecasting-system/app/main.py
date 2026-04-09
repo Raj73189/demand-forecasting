@@ -52,6 +52,13 @@ else:
 
 BASE_DIR = Path(__file__).resolve().parent
 settings = get_settings()
+TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
+
+
+def _is_truthy_env(value: str | None) -> bool:
+    if not value:
+        return False
+    return value.strip().lower() in TRUTHY_ENV_VALUES
 
 app = Flask(
     __name__,
@@ -59,12 +66,7 @@ app = Flask(
     static_folder=str(BASE_DIR / "static"),
     static_url_path="/static",
 )
-is_debug = os.getenv("FLASK_DEBUG", "").strip().lower() in {
-    "1",
-    "true",
-    "yes",
-    "on",
-}
+is_debug = _is_truthy_env(os.getenv("FLASK_DEBUG"))
 app.config.update(
     SECRET_KEY=settings.secret_key,
     SESSION_COOKIE_NAME=settings.session_cookie_name,
@@ -73,6 +75,39 @@ app.config.update(
     SESSION_PERMANENT=True,
     PERMANENT_SESSION_LIFETIME=timedelta(days=7),
 )
+
+
+def _suppress_werkzeug_dev_warning() -> None:
+    if not _is_truthy_env(os.getenv("HIDE_FLASK_DEV_WARNING")):
+        return
+    try:
+        from werkzeug import serving as werkzeug_serving
+    except Exception:
+        return
+
+    original_log = getattr(werkzeug_serving, "_log", None)
+    if original_log is None:
+        return
+    if getattr(original_log, "__name__", "") == "_log_without_dev_warning":
+        return
+
+    def _log_without_dev_warning(
+        level: str,
+        message: str,
+        *args: object,
+    ) -> None:
+        if isinstance(message, str):
+            filtered_lines = [
+                line
+                for line in message.splitlines()
+                if "WARNING: This is a development server." not in line
+            ]
+            message = "\n".join(filtered_lines).rstrip()
+            if not message:
+                return
+        original_log(level, message, *args)
+
+    setattr(werkzeug_serving, "_log", _log_without_dev_warning)
 
 
 def _ensure_role_column() -> None:
@@ -148,6 +183,7 @@ def _get_run_with_access(
     return None
 
 
+_suppress_werkzeug_dev_warning()
 _init_database()
 
 
@@ -594,10 +630,5 @@ def export_forecast_pdf(run_id: int) -> Response:
 if __name__ == "__main__":
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8000"))
-    debug = os.getenv("FLASK_DEBUG", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
+    debug = _is_truthy_env(os.getenv("FLASK_DEBUG"))
     app.run(host=host, port=port, debug=debug)

@@ -37,6 +37,15 @@ if not defined START_LOCAL_USE_ENV_DATABASE (
   echo [start] Using DATABASE_URL from .env/current environment
 )
 
+if not defined FLASK_DEBUG (
+  set "FLASK_DEBUG=1"
+)
+if not defined HIDE_FLASK_DEV_WARNING (
+  set "HIDE_FLASK_DEV_WARNING=1"
+)
+echo [start] Flask debug mode is enabled
+echo [start] Flask dev-server warning is hidden
+
 echo [start] Launching app at http://127.0.0.1:8000
 if defined USE_VENV (
   ".venv\Scripts\python.exe" -m flask --app app.main:app --env-file .env run --host 0.0.0.0 --port 8000
